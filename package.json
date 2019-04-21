@@ -1,0 +1,57 @@
+{
+    "name": "webrtch-chat-backend",
+    "version": "1.0.0",
+    "description": "backend",
+    "main": "src",
+    "scripts": {
+        "start:prod": "npx cross-env NODE_ENV=production",
+        "start": "node .",
+        "dev": "nodemon .",
+        "debug": "node --inspect .",
+        "test": "node_modules/.bin/mocha test/api --timeout 7000 --exit",
+        "cov": "nyc mocha test/api --timeout 7000 --exit",
+        "test:load": "node_modules/.bin/mocha test/load --timeout 70000 --exit",
+        "test:admin": "node_modules/.bin/mocha test/admin --timeout 7000 --exit",
+        "cov:admin": "nyc mocha test/admin --timeout 7000 --exit"
+    },
+    "_moduleAliases": {
+        "~": "src/"
+    },
+    "nodemonConfig": {
+        "ignore": [
+            "public/*"
+        ]
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@koa/cors": "2",
+        "bcrypt": "^3.0.4",
+        "color-log": "^0.0.2",
+        "dotenv": "^6.2.0",
+        "jsonwebtoken": "^8.5.0",
+        "koa": "^2.6.2",
+        "koa-passport": "^4.1.1",
+        "koa-router": "^7.4.0",
+        "koa-static": "^5.0.0",
+        "module-alias": "^2.1.0",
+        "mongoose": "^5.4.16",
+        "passport-custom": "^1.0.5",
+        "passport-jwt": "^4.0.0",
+        "raw-body": "^2.3.3",
+        "socket.io": "^2.2.0",
+        "koa-bodyparser": "^4.2.1",
+        "uuid": "^3.3.2"
+    },
+    "devDependencies": {
+        "chai": "^4.2.0",
+        "chai-sorted": "^0.2.0",
+        "chai-things": "^0.2.0",
+        "koa-compose": "^4.1.0",
+        "mocha": "^6.0.2",
+        "nyc": "^13.3.0",
+        "superagent-defaults": "^0.1.14",
+        "supertest": "^3.4.2",
+        "supertest-prefix": "^1.0.2"
+    }
+}
