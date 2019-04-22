@@ -1,6 +1,13 @@
 const io = require('socket.io')
-const { log } = require('~/helpers');
-const userByToken = require('./userByToken');
+const { log, sleep } = require('~/helpers');
+
+const uuidv4 = require('uuid/v4');
+let ri = 1;
+const uuid = () => {
+    return `Room${ri++}`.toString();
+}
+const GameRoom = require('./Room');
+const { GAME_STATES } = require('./consts');
 
 const onError = (client, payload) => {
     client.send({
@@ -8,18 +15,20 @@ const onError = (client, payload) => {
         ...payload
     });
 }
+
 // This arena is only capable of matching suitable players agains each other, nothing more
 class AppSocket {
     constructor(server) {
         this.socket = io.listen(server, {
-
         });
 
-        this.users = [];
+        this.users = {};
+        /**
+         * @type {Object<string, GameRoom>}
+         */
+        this.rooms = {};
+
         this.handleEvent = {
-            auth: this.auth.bind(this),
-            join: this.join.bind(this),
-            leave: this.leave.bind(this),
         }
 
         this.matching = false;
@@ -35,31 +44,56 @@ class AppSocket {
         this.socket.on('connection', (client) => {
             // log.mark('New client!');
             client.state = {};
-            // should join room
-            client.join('test');
+
+            client.join('test', err => {
+                if (err) {
+                    log.mark('ERROR ON CONNECT', client.id);
+                    return;
+                }
+                client.state.room = 'test';
+            });
+
+            client.on('join', async () => {
+                // should join room
+                log.warn(client.state.username, 'joins');
+                const [room, drawer] = await this.findRoomOrCreate(client);
+                log.mark('room is', room.id);
+                if (room) {
+                    // good 
+                    room.addUser(client);
+                }
+            })
 
             client.on('message', async (data) => {
                 // const d = new ArrayBuffer(data);
                 log.mark('New message from client');
-                // if (client.state.auth !== true) {
-                //     if (data.type !== 'auth') {
-                //         return client.send({
-                //             type: data.type,
-                //             success: false,
-                //             error: 'auth'
-                //         });
-                //     }
-                // }
+                if (client.state.auth !== true) {
+                    if (typeof data === 'object') {
+                        // this can only be auth
+                        if (data.type !== 'auth') {
+                            return client.send({
+                                type: data.type,
+                                success: false,
+                                error: 'auth'
+                            });
+                        } else {
+                            this.auth(client, data);
+                            return;
+                        }
+                    }
+                }
                 // decode
                 const decoded = this.decode(data);
                 this.handle(decoded[0], decoded.slice(1));
                 // emit event
-                this.socket.to('test').send(data);
+                // client.to('test').send(data);
+                // log.mark(client.rooms);
+                client.broadcast.to(client.state.room).emit('message', data);
                 // await this.handleEvent[event.type](client, event)
             });
 
             client.on('disconnect', async () => {
-                
+
                 // log.error('Client has disconnected');
             });
         });
@@ -69,61 +103,52 @@ class AppSocket {
         return new Uint8Array(data);
     }
 
+    createRoom(roomId) {
+        roomId = roomId || uuid();
+        const r = new GameRoom(roomId, this.socket);
+        return r;
+    }
+
+    /**
+     * 
+     * @returns {GameRoom} 
+     */
+    async findRoomOrCreate(client) {
+        let found = null;
+        // log.mark("I have", Object.keys(this.rooms).length);
+        for (const roomId in this.rooms) {
+            const room = this.rooms[roomId];
+            if (Object.keys(room.users).length < 5
+                && room.state < GAME_STATES.FINISHED) {
+                // add user to it 
+                return [room, false];
+                break;
+            }
+        }
+        // if (found !== null) {
+        //     return found;
+        // }
+        // create new room
+        // wait for a bit
+        if (Object.keys(this.rooms).length !== 0) {
+            await sleep(1000 * .5);
+        }
+        const room = this.createRoom();
+        // log.mark('created room', this.rooms);
+        this.rooms[room.id] = room;
+        return [room, true];
+    }
+
     /////////////////////////////////////////////// Event handlers /////////////////////////////////////////////
     async handle(type, data) {
         log.mark('event', type, 'payload', data.slice(0, 10));
     }
 
     async auth(client, event) {
-        try {
-            const user = await userByToken(event.token);
-            if (user) {
-                // client is authenticated
-                client.state.auth = true;
-                client.state.user = user;
-                client.send({ type: 'auth', success: true });
-            } else {
-                this.onError(client, {
-                    type: event.type,
-                    error: e,
-                });
-            }
-        } catch (e) {
-            log.error('Error on client auth', e);
-            this.onError(client, {
-                type: event.type,
-                error: e,
-            });
-        }
-    }
-
-    async leave(client, event) {
-        this.queue = this.queue.filter(v => v.id !== client.id);
-        client.send({ type: 'leaveArena', success: true });
-        client.state.user.arena.inQueue = false;
-        await client.state.user.save();
-        log.mark(this.queue.length, 'now in queue');
-    }
-
-    async join(client, event) {
-        // since client is authenticated, we have his id
-        const { _id } = client.state.user;
-        if (this.queue.some(v => v.state.user._id.toString() === _id.toString())) {
-            return;
-        };
-        // update db document
-        client.state.user.arena.inQueue = true;
-        await client.state.user.save();
-
-        this.queue.push(client);
-        log.mark(this.queue.length, 'now in queue');
-        client.send({ type: 'joinArena', success: true });
-        if (this.matching) {
-            this.needMatch = true;
-        } else {
-            clearTimeout(this.matchTimeout);
-            this.matchTimeout = setTimeout(this.findOpponent, 1000 * 1);
-        }
+        client.state.auth = true;
+        client.state.username = event.username;
+        client.state.id = uuidv4();
+        client.emit('auth', { success: true });
     }
 
     /////////////////////////////////////////////// [END] Event handlers /////////////////////////////////////////////

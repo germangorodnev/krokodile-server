@@ -38,6 +38,8 @@ exports.jsonParser = async (ctx, next) => {
     return next();
 }
 
+exports.sleep = ms => new Promise(res => setTimeout(res, ms));
+
 exports.log = {
     info: (...msg) => {
         logger.info(...msg);
