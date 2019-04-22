@@ -31,7 +31,6 @@ class GameRoom extends EventEmitter {
 
 
     addUser(client) {
-        this.users[client.state.id] = client;
         if (Object.keys(this.users).length > 0) {
             // he's a guesser
             client.state.drawer = false;
@@ -39,6 +38,7 @@ class GameRoom extends EventEmitter {
             // drawer
             client.state.drawer = true;
         }
+        this.users[client.state.id] = client;
 
         client.join(this.id, err => {
             if (err) {
@@ -53,12 +53,25 @@ class GameRoom extends EventEmitter {
                     e: 104,
                     dr: true,
                     w: this.words,
+                    id: client.state.id,
                 }))
             } else {
                 // send him all game info
-
+                client.send(createEvent(10, {
+                    e: 104,
+                    dr: false,
+                    id: client.state.id,
+                    us: Object.keys(this.users)
+                        .filter(uid => uid !== client.state.id)
+                        .map(uid => {
+                            return {
+                                id: uid,
+                                un: this.users[uid].state.username,
+                            }
+                        })
+                }))
                 // send new user event data to others
-                this.socket.in(this.id).send(createEvent(10, {
+                this.sendToAll(createEvent(10, {
                     e: 105,
                     id: client.state.id,
                     u: {
@@ -69,9 +82,23 @@ class GameRoom extends EventEmitter {
         })
     }
 
-    removeUser() {
-
+    removeUser(userId) {
+        const user = this.users[userId];
+        if (user) {
+            delete this.users[userId];
+            // emit leaving
+            this.sendToAll(createEvent(10, {
+                e: 106,
+                id: userId,
+            }));
+        }
     }
+
+
+    sendToAll(event) {
+        this.socket.in(this.id).send(event);
+    }
+
 
     close() {
 
@@ -110,8 +137,9 @@ class GameRoom extends EventEmitter {
     setState(newstate) {
         this.state = newstate;
         // send info to all users
-
     }
+
+
 }
 
 module.exports = GameRoom;

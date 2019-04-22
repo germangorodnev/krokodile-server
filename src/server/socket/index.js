@@ -7,7 +7,8 @@ const uuid = () => {
     return `Room${ri++}`.toString();
 }
 const GameRoom = require('./Room');
-const { GAME_STATES } = require('./consts');
+const { GAME_STATES, GAME_EVENTS } = require('./consts');
+const { ab2str, stringToArray, createEvent } = require('./helpers');
 
 const onError = (client, payload) => {
     client.send({
@@ -56,7 +57,7 @@ class AppSocket {
             client.on('join', async () => {
                 // should join room
                 log.warn(client.state.username, 'joins');
-                const [room, drawer] = await this.findRoomOrCreate(client);
+                const [room] = await this.findRoomOrCreate(client);
                 log.mark('room is', room.id);
                 if (room) {
                     // good 
@@ -85,16 +86,32 @@ class AppSocket {
                 // decode
                 const decoded = this.decode(data);
                 this.handle(decoded[0], decoded.slice(1));
-                // emit event
-                // client.to('test').send(data);
-                // log.mark(client.rooms);
-                client.broadcast.to(client.state.room).emit('message', data);
-                // await this.handleEvent[event.type](client, event)
+
+                // modify in some cases
+                switch (decoded[0]) {
+                    case GAME_EVENTS.MESSAGE: {
+                        let msg = decoded.slice(1);
+                        // console.log(msg);
+                        let ab = createEvent(decoded[0], [
+                            Array.from(msg.slice(1, msg.length - 1)),
+                            stringToArray(client.state.id),
+                        ]);
+                        client.broadcast.to(client.state.room).emit('message', ab);
+                        break;
+                    }
+                    default: {
+                        client.broadcast.to(client.state.room).emit('message', data);
+                    }
+                }
             });
 
             client.on('disconnect', async () => {
-
-                // log.error('Client has disconnected');
+                log.error('Client has disconnected', client.state);
+                // remove from thingy
+                const r = this.rooms[client.state.room];
+                if (r) {
+                    r.removeUser(client.state.id);
+                }
             });
         });
     }
@@ -106,6 +123,7 @@ class AppSocket {
     createRoom(roomId) {
         roomId = roomId || uuid();
         const r = new GameRoom(roomId, this.socket);
+        this.rooms[r.id] = r;
         return r;
     }
 
@@ -135,7 +153,6 @@ class AppSocket {
         }
         const room = this.createRoom();
         // log.mark('created room', this.rooms);
-        this.rooms[room.id] = room;
         return [room, true];
     }
 
