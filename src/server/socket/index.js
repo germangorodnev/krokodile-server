@@ -7,7 +7,7 @@ const uuid = () => {
     return `Room${ri++}`.toString();
 }
 const GameRoom = require('./Room');
-const { GAME_STATES, GAME_EVENTS } = require('./consts');
+const { GAME_STATES, GAME_EVENTS, MSG_STATUS } = require('./consts');
 const { ab2str, stringToArray, createEvent } = require('./helpers');
 
 const onError = (client, payload) => {
@@ -58,7 +58,7 @@ class AppSocket {
                 // should join room
                 log.warn(client.state.username, 'joins');
                 const [room] = await this.findRoomOrCreate(client);
-                log.mark('room is', room.id);
+                log.warn(client.state.username, 'room:', room.id);
                 if (room) {
                     // good 
                     room.addUser(client);
@@ -85,22 +85,52 @@ class AppSocket {
                 }
                 // decode
                 const decoded = this.decode(data);
+                const event = decoded[0];
                 this.handle(decoded[0], decoded.slice(1));
 
+                const usual = () => {
+                    client.broadcast.to(client.state.room).emit('message', data);
+                };
+
                 // modify in some cases
-                switch (decoded[0]) {
+                switch (event) {
                     case GAME_EVENTS.MESSAGE: {
                         let msg = decoded.slice(1);
-                        // console.log(msg);
+                        const { id, room } = client.state;
+                        const r = this.rooms[room];
+
+                        // set index
+                        let index = r.nextMessageIndex();
+
                         let ab = createEvent(decoded[0], [
                             Array.from(msg.slice(1, msg.length - 1)),
-                            stringToArray(client.state.id),
+                            stringToArray(id),
+                            [index],
                         ]);
-                        client.broadcast.to(client.state.room).emit('message', ab);
+                        // push to room history
+                        const prs = ab2str(msg.slice(1, msg.length - 1));
+                        log.warn('parsed', prs);
+                        r.addMessage({
+                            id: client.state.id,
+                            text: prs,
+                            i: index,
+                            l: MSG_STATUS.NONE,
+                        });
+                        this.socket.to(client.state.room).send(ab);
+                        // client.broadcast.to(client.state.room).emit('message', ab);
+                        break;
+                    }
+                    case GAME_EVENTS.LIKE:
+                    case GAME_EVENTS.DISLIKE: {
+                        // need to like\dislike our local copy
+                        const index =  decoded.slice(1)[0];
+                        this.rooms[client.state.room].likeDisMessage(index, event === GAME_EVENTS.LIKE);
+                        usual();
                         break;
                     }
                     default: {
-                        client.broadcast.to(client.state.room).emit('message', data);
+                        usual();
+                        break;
                     }
                 }
             });
@@ -127,6 +157,11 @@ class AppSocket {
         return r;
     }
 
+    onRoomClosed(room) {
+        if (this.rooms)
+            delete this.rooms[room];
+    }
+
     /**
      * 
      * @returns {GameRoom} 
@@ -136,6 +171,7 @@ class AppSocket {
         // log.mark("I have", Object.keys(this.rooms).length);
         for (const roomId in this.rooms) {
             const room = this.rooms[roomId];
+            if (!room || room.closed !== false) continue;
             if (Object.keys(room.users).length < 5
                 && room.state < GAME_STATES.FINISHED) {
                 // add user to it 
@@ -152,6 +188,7 @@ class AppSocket {
             await sleep(1000 * .5);
         }
         const room = this.createRoom();
+        room.on('closed', this.onRoomClosed);
         // log.mark('created room', this.rooms);
         return [room, true];
     }
@@ -162,9 +199,26 @@ class AppSocket {
     }
 
     async auth(client, event) {
+        log.mark('Authing', event);
+        const { username } = event;
         client.state.auth = true;
-        client.state.username = event.username;
-        client.state.id = uuidv4();
+        client.state.username = username;
+        // check if this is a history known user
+        let _id = null;
+        Object.keys(this.users).some(k => {
+            if (this.users[k].state.username === username) {
+                _id = k;
+                return true;
+            }
+            return false;
+        });
+        if (_id) {
+            client.state.id = _id;
+            log.mark('Historical');
+        } else {
+            client.state.id = uuidv4();
+        }
+        this.users[client.state.id] = client;
         client.emit('auth', { success: true });
     }
 

@@ -23,3 +23,11 @@ exports.GAME_EVENTS = {
     JOIN: 9,
     API: 10,
 };
+
+exports.MSG_STATUS = {
+    NONE: 0,
+    LIKE: 1,
+    LIKED: 2,
+    DIS: 3,
+    DISSED: 4,
+};
