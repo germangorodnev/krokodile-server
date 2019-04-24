@@ -1,5 +1,5 @@
 const { EventEmitter } = require('events');
-const { GAME_STATES, GAME_EVENTS, MSG_STATUS, WORD_TYPES } = require('./consts');
+const { GAME_STATES, GAME_EVENTS, MSG_STATUS, WORD_TYPES, NET_EVENTS } = require('./consts');
 const { createEvent } = require('./helpers');
 const { log, sleep } = require('~/helpers');
 
@@ -68,7 +68,7 @@ class GameRoom extends EventEmitter {
 
                 // send him the words
                 client.send(createEvent(GAME_EVENTS.API, {
-                    e: 104,
+                    e: NET_EVENTS.GAME_INFO,
                     dr: true,
                     id: client.state.id,
                     w: this.words,
@@ -83,10 +83,12 @@ class GameRoom extends EventEmitter {
 
                 // send him all game info
                 client.send(createEvent(GAME_EVENTS.API, {
-                    e: 104,
+                    e: NET_EVENTS.GAME_INFO,
                     dr: false,
                     id: client.state.id,
-                    w: this.word,
+                    w: (this.word ? ({
+                        t: this.word.t,
+                    }) : undefined),
                     // all users
                     us: Object.keys(this.users)
                         // .filter(uid => uid !== client.state.id)
@@ -101,7 +103,7 @@ class GameRoom extends EventEmitter {
                 }))
                 // send new user event data to others
                 this.sendToAll(createEvent(GAME_EVENTS.API, {
-                    e: 105,
+                    e: NET_EVENTS.NEW_USER,
                     u: {
                         id: client.state.id,
                         un: client.state.username,
@@ -110,6 +112,25 @@ class GameRoom extends EventEmitter {
 
             }
         })
+    }
+
+    checkAnswer(text) {
+        if (text.indexOf(this.word.w) > -1) {
+            // what a lucky guy
+            // emit that winned
+            this.sendToAll(createEvent(GAME_EVENTS.API, {
+                e: NET_EVENTS.GUESSED_RIGHT,
+                w: this.word.w,
+                // u: {
+                //     id: client.state.id,
+                //     un: client.state.username,
+                // }
+            }));
+            // close
+            setImmediate(() => {
+                this.close();
+            });
+        }
     }
 
     nextMessageIndex() {
@@ -195,11 +216,11 @@ class GameRoom extends EventEmitter {
         // emit to all other players
         // emit set state to drawer
         const msgToGuesser = createEvent(GAME_EVENTS.API, {
-            e: 107,
-            wt: this.word.t
+            e: NET_EVENTS.WORD_INFO,
+            t: this.word.t
         });
         this.drawer.broadcast.to(this.id).send(msgToGuesser);
-        this.drawer.send(createEvent(GAME_EVENTS.SET_STATE, [ GAME_STATES.PLAYING ]));
+        this.drawer.send(createEvent(GAME_EVENTS.SET_STATE, [GAME_STATES.PLAYING]));
     }
 
     close() {

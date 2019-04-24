@@ -117,6 +117,8 @@ class AppSocket {
                             l: MSG_STATUS.NONE,
                         });
                         this.socket.to(client.state.room).send(ab);
+                        // check answer
+                        r.checkAnswer(prs);
                         // client.broadcast.to(client.state.room).emit('message', ab);
                         break;
                     }

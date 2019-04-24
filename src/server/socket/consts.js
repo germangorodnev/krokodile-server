@@ -38,3 +38,15 @@ exports.WORD_TYPES = {
     VERB: 1,
     ADJ: 2,
 };
+
+exports.NET_EVENTS = {
+    JOIN: 100,
+    REJOIN: 101,
+    LEAVE: 102,
+    NOTIFICATION: 103,
+    GAME_INFO: 104,
+    NEW_USER: 105,
+    USER_LEFT: 106,
+    WORD_INFO: 107,
+    GUESSED_RIGHT: 108,
+};
