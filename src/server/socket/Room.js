@@ -1,5 +1,5 @@
 const { EventEmitter } = require('events');
-const { GAME_STATES, ROLES, MSG_STATUS } = require('./consts');
+const { GAME_STATES, GAME_EVENTS, MSG_STATUS, WORD_TYPES } = require('./consts');
 const { createEvent } = require('./helpers');
 const { log, sleep } = require('~/helpers');
 
@@ -18,6 +18,10 @@ class GameRoom extends EventEmitter {
          * @type {SocketIO.Server}
          */
         this.socket = socket;
+        /**
+         * @type {SocketIO.Socket}
+         */
+        this.drawer = null;
 
         // generate words
         this.words = [{
@@ -30,6 +34,7 @@ class GameRoom extends EventEmitter {
             t: 2,
             w: 'клевый'
         }];
+        this.word = null;
         this.chat = [];
     }
 
@@ -42,6 +47,7 @@ class GameRoom extends EventEmitter {
             // drawer
             log.mark('Set', client.state.username, 'as drawer');
             client.state.drawer = true;
+            this.drawer = client;
         }
         this.users[client.state.id] = client;
 
@@ -61,7 +67,7 @@ class GameRoom extends EventEmitter {
                 });
 
                 // send him the words
-                client.send(createEvent(10, {
+                client.send(createEvent(GAME_EVENTS.API, {
                     e: 104,
                     dr: true,
                     id: client.state.id,
@@ -76,10 +82,11 @@ class GameRoom extends EventEmitter {
                 });
 
                 // send him all game info
-                client.send(createEvent(10, {
+                client.send(createEvent(GAME_EVENTS.API, {
                     e: 104,
                     dr: false,
                     id: client.state.id,
+                    w: this.word,
                     // all users
                     us: Object.keys(this.users)
                         // .filter(uid => uid !== client.state.id)
@@ -93,7 +100,7 @@ class GameRoom extends EventEmitter {
                     ch: this.chat,
                 }))
                 // send new user event data to others
-                this.sendToAll(createEvent(10, {
+                this.sendToAll(createEvent(GAME_EVENTS.API, {
                     e: 105,
                     u: {
                         id: client.state.id,
@@ -124,7 +131,7 @@ class GameRoom extends EventEmitter {
                 } else {
                     // save message
                     // emit leaving
-                    this.sendToAll(createEvent(10, {
+                    this.sendToAll(createEvent(GAME_EVENTS.API, {
                         e: 106,
                         id: userId,
                     }));
@@ -160,8 +167,16 @@ class GameRoom extends EventEmitter {
                     m.l = set1;
                     break;
                 case MSG_STATUS.LIKE:
+                    if (like)
+                        m.l = set2;
+                    else
+                        m.l = set1;
+                    break;
                 case MSG_STATUS.DIS:
-                    m.l = set2;
+                    if (like)
+                        m.l = set1;
+                    else
+                        m.l = set2;
                     break;
                 case MSG_STATUS.LIKED:
                 case MSG_STATUS.DISSED:
@@ -171,6 +186,20 @@ class GameRoom extends EventEmitter {
                     m.l = set1;
             }
         }
+    }
+
+    selectWord(index) {
+        if (this.state > GAME_STATES.SELECTING_WORD) return;
+        this.state = GAME_STATES.PLAYING;
+        this.word = this.words[index];
+        // emit to all other players
+        // emit set state to drawer
+        const msgToGuesser = createEvent(GAME_EVENTS.API, {
+            e: 107,
+            wt: this.word.t
+        });
+        this.drawer.broadcast.to(this.id).send(msgToGuesser);
+        this.drawer.send(createEvent(GAME_EVENTS.SET_STATE, [ GAME_STATES.PLAYING ]));
     }
 
     close() {
@@ -201,13 +230,12 @@ class GameRoom extends EventEmitter {
             ];
             // send words to player
             // send trigger of start to others
-            const msgToDrawer = createEvent(10, {
+            const msgToDrawer = createEvent(GAME_EVENTS.API, {
                 e: 104,
 
             });
-            const msgToGuesser = createEvent(10, {
+            const msgToGuesser = createEvent(GAME_EVENTS.API, {
                 e: 104,
-
             });
             for (const ui in this.users) {
                 /** @type {SocketIOClient.Socket} */

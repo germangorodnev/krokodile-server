@@ -123,11 +123,18 @@ class AppSocket {
                     case GAME_EVENTS.LIKE:
                     case GAME_EVENTS.DISLIKE: {
                         // need to like\dislike our local copy
-                        const index =  decoded.slice(1)[0];
+                        const index =  decoded[1];
                         this.rooms[client.state.room].likeDisMessage(index, event === GAME_EVENTS.LIKE);
                         usual();
                         break;
                     }
+
+                    case GAME_EVENTS.SELECT_WORD: {
+                        const index =  decoded[1];
+                        this.rooms[client.state.room].selectWord(index);
+                        break;  
+                    }
+
                     default: {
                         usual();
                         break;

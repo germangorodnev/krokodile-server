@@ -17,11 +17,12 @@ exports.GAME_EVENTS = {
     MESSAGE: 3,
     LIKE: 4,
     DISLIKE: 5,
-    CHOOSE_WORD: 6,
+    SELECT_WORD: 6,
     HINT: 7,
     LEAVE: 8,
     JOIN: 9,
     API: 10,
+    SET_STATE: 11,
 };
 
 exports.MSG_STATUS = {
@@ -30,4 +31,10 @@ exports.MSG_STATUS = {
     LIKED: 2,
     DIS: 3,
     DISSED: 4,
+};
+
+exports.WORD_TYPES = {
+    NOUN: 0,
+    VERB: 1,
+    ADJ: 2,
 };
