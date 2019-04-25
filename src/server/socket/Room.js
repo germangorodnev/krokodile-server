@@ -2,7 +2,7 @@ const { EventEmitter } = require('events');
 const { GAME_STATES, GAME_EVENTS, MSG_STATUS, WORD_TYPES, NET_EVENTS } = require('./consts');
 const { createEvent } = require('./helpers');
 const { log, sleep } = require('~/helpers');
-
+const {getWords} = require('../words');
 class GameRoom extends EventEmitter {
     constructor(id, socket) {
         super();
@@ -24,16 +24,7 @@ class GameRoom extends EventEmitter {
         this.drawer = null;
 
         // generate words
-        this.words = [{
-            t: 0,
-            w: 'собака'
-        }, {
-            t: 1,
-            w: 'ходить'
-        }, {
-            t: 2,
-            w: 'клевый'
-        }];
+        this.words = getWords();
         this.word = null;
         this.chat = [];
     }
@@ -115,7 +106,7 @@ class GameRoom extends EventEmitter {
     }
 
     checkAnswer(text) {
-        if (text.indexOf(this.word.w) > -1) {
+        if (text.toLowerCase().indexOf(this.word.w.toLowerCase()) > -1) {
             // what a lucky guy
             // emit that winned
             this.sendToAll(createEvent(GAME_EVENTS.API, {

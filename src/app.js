@@ -24,5 +24,5 @@ const AppSocket = require('./server/socket');
         res.end("<h1>heheheheh</h1>")
     })
     AppSocket.init(server2);
-    server2.listen(8000);
+    server2.listen(8200);
 })();
