@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'backend',
+      name: 'kroko-server',
       script: 'npm run start:prod',
       instances: 1,
       autorestart: true,
