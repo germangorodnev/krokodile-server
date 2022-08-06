@@ -36,7 +36,7 @@
         "koa-router": "^7.4.0",
         "koa-static": "^5.0.0",
         "module-alias": "^2.1.0",
-        "mongoose": "^5.4.16",
+        "mongoose": "^5.7.5",
         "passport-custom": "^1.0.5",
         "passport-jwt": "^4.0.0",
         "raw-body": "^2.3.3",
